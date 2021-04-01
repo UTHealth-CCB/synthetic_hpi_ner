@@ -1,0 +1,26 @@
+A	O
+TEL	O
+AVIV	O
+,	O
+IN	O
+AUGUST	O
+1993	O
+.	O
+The	O
+patient	O
+was	O
+a	O
+fatality	O
+because	O
+of	O
+a	B-problem
+non	I-problem
+-	I-problem
+healing	I-problem
+right	I-problem
+lower	I-problem
+extremity	I-problem
+penetrating	I-problem
+fistula	I-problem
+.	O
+
