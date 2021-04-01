@@ -5,6 +5,7 @@ Changes includes: create run_gen_charrnn.sh and run_gen_charrnn.sh to train and 
 Following is the original README of this package.
 
 char-rnn-tensorflow
+
 Join the chat at https://gitter.im/char-rnn-tensorflow/Lobby Coverage Status Build Status
 
 Multi-layer Recurrent Neural Networks (LSTM, RNN) for character-level language models in Python using Tensorflow.
