@@ -1,3 +1,9 @@
+This code was mostly copied from https://github.com/minimaxir/gpt-2-simple.
+
+Changes includes: creat train_utils/run_gen_ctrl.sh and run_gen_ctrl.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data; minor modifications to generate.py. 
+
+Following is the original README of this package.
+
 # CTRL - A Conditional Transformer Language Model for Controllable Generation
 Authors: [Nitish Shirish Keskar](http://keskarnitish.github.io), [Bryan McCann](https://bmccann.github.io/), [Lav Varshney](http://www.varshney.csl.illinois.edu/), [Caiming Xiong](http://www.stat.ucla.edu/~caiming/), and [Richard Socher](https://www.socher.org/)
 
