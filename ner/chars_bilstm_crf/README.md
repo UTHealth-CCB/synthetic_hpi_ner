@@ -1,3 +1,11 @@
+This code was mostly copied from https://github.com/guillaumegenthial/tf_ner/tree/master/models/chars_lstm_lstm_crf.
+
+Changes includes: create convert_bio_to_words_tags.py to convert the original CONLL2003 BIO format (https://www.aclweb.org/anthology/W03-0419.pdf) files to words and tags files , create predict.py to generate prediction labels, minor modifications to main.py, and minor modifications to build_vocab.py
+
+Following is the original README of this package.
+
+
+
 # Chars LSTM + bi-LSTM + CRF
 
 __Architecture__
