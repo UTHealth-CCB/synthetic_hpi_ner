@@ -2,6 +2,7 @@
 This repository contains the manually annotated synthetic corpus and codes for the paper: Are Synthetic Clinical Notes Useful for Real Natural Language Processing Tasks: A Case Study on Clinical Entity Recognition.
   
 Requirements
+
 Install python, tensorflow. We use Python 3.6, Tensorflow 1.15.2.
 If you plan to use GPU computation, install CUDA.
 
