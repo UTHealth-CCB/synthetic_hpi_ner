@@ -1,3 +1,9 @@
+This code was mostly copied from https://github.com/liyzcj/seggan.
+
+Changes includes: creat run_train_gen_seggan.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data.
+
+Following is the original README of this package.
+
 
 ## Introduction
 
