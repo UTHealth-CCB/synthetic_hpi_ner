@@ -1,0 +1,8 @@
+README.md
+setup.py
+tf_metrics/__init__.py
+tf_metrics.egg-info/PKG-INFO
+tf_metrics.egg-info/SOURCES.txt
+tf_metrics.egg-info/dependency_links.txt
+tf_metrics.egg-info/requires.txt
+tf_metrics.egg-info/top_level.txt
