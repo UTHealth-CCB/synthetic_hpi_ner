@@ -10,9 +10,12 @@ from six.moves import cPickle
 
 parser = argparse.ArgumentParser(
                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-# Data and model checkpoints directories
-parser.add_argument('--data_dir', type=str, default='data/tinyshakespeare',
-                    help='data directory containing input.txt with training examples')
+# input train file
+parser.add_argument('--input_file', type=str, default='data/tinyshakespeare/input.txt',
+                    help='input file with training examples')
+# temp_dir to save intermediate data
+parser.add_argument('--temp_dir', type=str, default='temp',
+                    help='temp data directory containing intermediate input data')
 parser.add_argument('--save_dir', type=str, default='save',
                     help='directory to store checkpointed models')
 parser.add_argument('--log_dir', type=str, default='logs',
@@ -30,7 +33,7 @@ parser.add_argument('--init_from', type=str, default=None,
                          Model params must be the same between multiple runs (model, rnn_size, num_layers and seq_length).
                     """)
 # Model params
-parser.add_argument('--model', type=str, default='lstm',
+parser.add_argument('--model', type=str, default='rnn',
                     help='lstm, rnn, gru, or nas')
 parser.add_argument('--rnn_size', type=int, default=128,
                     help='size of RNN hidden state')
@@ -62,7 +65,9 @@ from utils import TextLoader
 from model import Model
 
 def train(args):
-    data_loader = TextLoader(args.data_dir, args.batch_size, args.seq_length)
+    if not os.path.exists(args.temp_dir):
+        os.mkdir(args.temp_dir)
+    data_loader = TextLoader(args.input_file, args.temp_dir, args.batch_size, args.seq_length)
     args.vocab_size = data_loader.vocab_size
 
     # check compatibility if training is continued from previously saved model
@@ -116,10 +121,14 @@ def train(args):
             for b in range(data_loader.num_batches):
                 start = time.time()
                 x, y = data_loader.next_batch()
-                feed = {model.input_data: x, model.targets: y}
-                for i, (c, h) in enumerate(model.initial_state):
-                    feed[c] = state[i].c
-                    feed[h] = state[i].h
+                feed = {model.input_data: x, model.targets: y}                
+                if args.model == 'rnn':
+                    for i, s in enumerate(model.initial_state):
+                        feed[s] = state[i]                    
+                else:
+                    for i, (c, h) in enumerate(model.initial_state):
+                        feed[c] = state[i].c
+                        feed[h] = state[i].h
 
                 # instrument for tensorboard
                 summ, train_loss, state, _ = sess.run([summaries, model.cost, model.final_state, model.train_op], feed)

@@ -6,15 +6,15 @@ import numpy as np
 
 
 class TextLoader():
-    def __init__(self, data_dir, batch_size, seq_length, encoding='utf-8'):
-        self.data_dir = data_dir
+    def __init__(self, input_file, temp_dir, batch_size, seq_length, encoding='utf-8'):
+        self.input_file = input_file,
+        self.temp_dir = temp_dir
         self.batch_size = batch_size
         self.seq_length = seq_length
         self.encoding = encoding
-
-        input_file = os.path.join(data_dir, "input.txt")
-        vocab_file = os.path.join(data_dir, "vocab.pkl")
-        tensor_file = os.path.join(data_dir, "data.npy")
+        
+        vocab_file = os.path.join(temp_dir, "vocab.pkl")
+        tensor_file = os.path.join(temp_dir, "data.npy")
 
         if not (os.path.exists(vocab_file) and os.path.exists(tensor_file)):
             print("reading text file")

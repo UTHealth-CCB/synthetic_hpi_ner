@@ -14,7 +14,8 @@ class Model():
 
         # choose different rnn cell 
         if args.model == 'rnn':
-            cell_fn = rnn.RNNCell
+            #cell_fn = rnn.RNNCell
+            cell_fn = rnn.BasicRNNCell
         elif args.model == 'gru':
             cell_fn = rnn.GRUCell
         elif args.model == 'lstm':
