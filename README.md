@@ -3,7 +3,7 @@ This repository contains the manually annotated synthetic corpus and codes for t
   
 Requirements
 
-Install python, tensorflow. We use Python 3.6, Tensorflow 1.15.2.
+Install python, tensorflow. We use Python 3.6, Tensorflow 1.15.
 If you plan to use GPU computation, install CUDA.
 
 Train all the synthetic language models using the scripts (run_train_#.sh/run_gen_#.sh, # means charrnn, ctrl, gpt2, and seggan respectively) in each model-folder under synth_hpi with I2B2 2010 and N2C2 2018 HPI (History of Present Illness) section data. The original I2B2 2010 and N2C2 2018 challenges data are available at https://portal.dbmi.hms.harvard.edu/projects/n2c2-nlp/ which would require additional login or register. 
