@@ -1,3 +1,9 @@
+This code was mostly copied from https://github.com/sherjilozair/char-rnn-tensorflow.
+
+Changes includes: create run_gen_charrnn.sh and run_gen_charrnn.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data.
+
+Following is the original README of this package.
+
 # char-rnn-tensorflow
 Multi-layer Recurrent Neural Networks (LSTM,RNN) for character-level language models in Python using Tensorflow.
 
