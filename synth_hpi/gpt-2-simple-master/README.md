@@ -1,3 +1,9 @@
+This code was mostly copied from https://github.com/minimaxir/gpt-2-simple.
+
+Changes includes: create finetuning.py, generate.py, run_gen_gpt2.sh and run_gen_gpt2.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data.
+
+Following is the original README of this package.
+
 # gpt-2-simple
 
 ![gen_demo](docs/gen_demo.png)
