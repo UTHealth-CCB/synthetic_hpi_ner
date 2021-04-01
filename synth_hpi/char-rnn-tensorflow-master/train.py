@@ -1,107 +1,144 @@
-import codecs
-import os
-from utils import TextReader, batch_generator, pick_top_n
-from CharRNN import CharRNN
-import tensorflow as tf
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import argparse
 import time
-
-FLAGS = tf.flags.FLAGS
-
-tf.flags.DEFINE_string('name', 'default', 'the name of the model')
-tf.flags.DEFINE_integer('num_seqs', 100, 'number of seqs in batch')
-tf.flags.DEFINE_integer('num_steps', 100, 'length of one seq')
-tf.flags.DEFINE_integer('lstm_size', 128, 'size of hidden layer')
-tf.flags.DEFINE_integer('num_layers', 2, 'number of lstm layers')
-tf.flags.DEFINE_boolean('use_embedding', False, 'if use embedding')
-tf.flags.DEFINE_integer('embedding_size', 128, 'size of embedding')
-tf.flags.DEFINE_float('learning_rate', 0.001, 'learning_rate')
-tf.flags.DEFINE_float('train_keep_prob', 0.5,
-                      'dropout rate during training process')
-tf.flags.DEFINE_string('input_file', None, 'utf-8 encoded input file')
-tf.flags.DEFINE_integer('max_steps', 100000, 'max steps of training')
-tf.flags.DEFINE_integer('save_model_every', 200,
-                        'save the model every 1000 steps')
-tf.flags.DEFINE_integer('log_every', 10, 'log the summaries every 10 steps')
-tf.flags.DEFINE_integer('max_vocab', 3500, 'the maximum of char number')
+import os
+from six.moves import cPickle
 
 
-def main(_):
-    if not os.path.exists(FLAGS.name):
-        os.makedirs(FLAGS.name)
+parser = argparse.ArgumentParser(
+                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+# Data and model checkpoints directories
+parser.add_argument('--data_dir', type=str, default='data/tinyshakespeare',
+                    help='data directory containing input.txt with training examples')
+parser.add_argument('--save_dir', type=str, default='save',
+                    help='directory to store checkpointed models')
+parser.add_argument('--log_dir', type=str, default='logs',
+                    help='directory to store tensorboard logs')
+parser.add_argument('--save_every', type=int, default=1000,
+                    help='Save frequency. Number of passes between checkpoints of the model.')
+parser.add_argument('--init_from', type=str, default=None,
+                    help="""continue training from saved model at this path (usually "save").
+                        Path must contain files saved by previous training process:
+                        'config.pkl'        : configuration;
+                        'chars_vocab.pkl'   : vocabulary definitions;
+                        'checkpoint'        : paths to model file(s) (created by tf).
+                                              Note: this file contains absolute paths, be careful when moving files around;
+                        'model.ckpt-*'      : file(s) with model definition (created by tf)
+                         Model params must be the same between multiple runs (model, rnn_size, num_layers and seq_length).
+                    """)
+# Model params
+parser.add_argument('--model', type=str, default='lstm',
+                    help='lstm, rnn, gru, or nas')
+parser.add_argument('--rnn_size', type=int, default=128,
+                    help='size of RNN hidden state')
+parser.add_argument('--num_layers', type=int, default=2,
+                    help='number of layers in the RNN')
+# Optimization
+parser.add_argument('--seq_length', type=int, default=50,
+                    help='RNN sequence length. Number of timesteps to unroll for.')
+parser.add_argument('--batch_size', type=int, default=50,
+                    help="""minibatch size. Number of sequences propagated through the network in parallel.
+                            Pick batch-sizes to fully leverage the GPU (e.g. until the memory is filled up)
+                            commonly in the range 10-500.""")
+parser.add_argument('--num_epochs', type=int, default=50,
+                    help='number of epochs. Number of full passes through the training examples.')
+parser.add_argument('--grad_clip', type=float, default=5.,
+                    help='clip gradients at this value')
+parser.add_argument('--learning_rate', type=float, default=0.002,
+                    help='learning rate')
+parser.add_argument('--decay_rate', type=float, default=0.97,
+                    help='decay rate for rmsprop')
+parser.add_argument('--output_keep_prob', type=float, default=1.0,
+                    help='probability of keeping weights in the hidden layer')
+parser.add_argument('--input_keep_prob', type=float, default=1.0,
+                    help='probability of keeping weights in the input layer')
+args = parser.parse_args()
 
-    model_path = os.path.join(FLAGS.name, 'model')
-    logdir_path = os.path.join(FLAGS.name, 'logdir')
-    with codecs.open(FLAGS.input_file, encoding='utf-8') as f:
-        text = f.read()
-    Reader = TextReader(text, FLAGS.max_vocab)
-    Reader.save_to_file(os.path.join(FLAGS.name, 'converter.pkl'))
+import tensorflow as tf
+from utils import TextLoader
+from model import Model
 
-    arr = Reader.text_to_arr(text)
-    g = batch_generator(arr, FLAGS.num_seqs, FLAGS.num_steps)
+def train(args):
+    data_loader = TextLoader(args.data_dir, args.batch_size, args.seq_length)
+    args.vocab_size = data_loader.vocab_size
 
-    with tf.Graph().as_default():
-        sess = tf.Session()
-        with sess.as_default():
-            char_rnn = CharRNN(
-                num_classes=Reader.vocab_size,
-                num_seqs=FLAGS.num_seqs,
-                num_steps=FLAGS.num_steps,
-                lstm_size=FLAGS.lstm_size,
-                num_layers=FLAGS.num_layers,
-                learning_rate=FLAGS.learning_rate,
-                train_keep_prob=FLAGS.train_keep_prob,
-                use_embedding=FLAGS.use_embedding,
-                embedding_size=FLAGS.embedding_size)
+    # check compatibility if training is continued from previously saved model
+    if args.init_from is not None:
+        # check if all necessary files exist
+        assert os.path.isdir(args.init_from)," %s must be a a path" % args.init_from
+        assert os.path.isfile(os.path.join(args.init_from,"config.pkl")),"config.pkl file does not exist in path %s"%args.init_from
+        assert os.path.isfile(os.path.join(args.init_from,"chars_vocab.pkl")),"chars_vocab.pkl.pkl file does not exist in path %s" % args.init_from
+        ckpt = tf.train.latest_checkpoint(args.init_from)
+        assert ckpt, "No checkpoint found"
 
-            # define training procedure
-            global_step = tf.Variable(0, trainable=False, name='global_step')
-            optimizer = tf.train.AdamOptimizer(
-                learning_rate=FLAGS.learning_rate)
-            # use clipping gradients
-            tvars = tf.trainable_variables()
-            grads, _ = tf.clip_by_global_norm(
-                tf.gradients(ys=char_rnn.loss, xs=tvars),
-                clip_norm=char_rnn.grad_clip)
-            train_op = optimizer.apply_gradients(
-                grads_and_vars=zip(grads, tvars), global_step=global_step)
+        # open old config and check if models are compatible
+        with open(os.path.join(args.init_from, 'config.pkl'), 'rb') as f:
+            saved_model_args = cPickle.load(f)
+        need_be_same = ["model", "rnn_size", "num_layers", "seq_length"]
+        for checkme in need_be_same:
+            assert vars(saved_model_args)[checkme]==vars(args)[checkme],"Command line argument and saved model disagree on '%s' "%checkme
 
-            saver = tf.train.Saver()
-            sess.run(tf.global_variables_initializer())
-            if os.path.exists(model_path):
-                saver.restore(sess, tf.train.latest_checkpoint(model_path))
-                print('model restored!')
-            else:
-                os.makedirs(model_path)
+        # open saved vocab/dict and check if vocabs/dicts are compatible
+        with open(os.path.join(args.init_from, 'chars_vocab.pkl'), 'rb') as f:
+            saved_chars, saved_vocab = cPickle.load(f)
+        assert saved_chars==data_loader.chars, "Data and loaded model disagree on character set!"
+        assert saved_vocab==data_loader.vocab, "Data and loaded model disagree on dictionary mappings!"
 
-            new_state = sess.run(char_rnn.initial_state)
+    if not os.path.isdir(args.save_dir):
+        os.makedirs(args.save_dir)
+    with open(os.path.join(args.save_dir, 'config.pkl'), 'wb') as f:
+        cPickle.dump(args, f)
+    with open(os.path.join(args.save_dir, 'chars_vocab.pkl'), 'wb') as f:
+        cPickle.dump((data_loader.chars, data_loader.vocab), f)
 
-            for x, y in g:
+    model = Model(args)
+
+    with tf.Session() as sess:
+        # instrument for tensorboard
+        summaries = tf.summary.merge_all()
+        writer = tf.summary.FileWriter(
+                os.path.join(args.log_dir, time.strftime("%Y-%m-%d-%H-%M-%S")))
+        writer.add_graph(sess.graph)
+
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver(tf.global_variables())
+        # restore model
+        if args.init_from is not None:
+            saver.restore(sess, ckpt)
+        for e in range(args.num_epochs):
+            sess.run(tf.assign(model.lr,
+                               args.learning_rate * (args.decay_rate ** e)))
+            data_loader.reset_batch_pointer()
+            state = sess.run(model.initial_state)
+            for b in range(data_loader.num_batches):
                 start = time.time()
-                feed_dict = {
-                    char_rnn.inputs: x,
-                    char_rnn.targets: y,
-                    char_rnn.keep_prob: FLAGS.train_keep_prob,
-                    char_rnn.initial_state: new_state
-                }
+                x, y = data_loader.next_batch()
+                feed = {model.input_data: x, model.targets: y}
+                for i, (c, h) in enumerate(model.initial_state):
+                    feed[c] = state[i].c
+                    feed[h] = state[i].h
 
-                _, step, new_state, loss = sess.run([
-                    train_op, global_step, char_rnn.final_state, char_rnn.loss
-                ], feed_dict)
+                # instrument for tensorboard
+                summ, train_loss, state, _ = sess.run([summaries, model.cost, model.final_state, model.train_op], feed)
+                writer.add_summary(summ, e * data_loader.num_batches + b)
 
                 end = time.time()
-                current_step = tf.train.global_step(sess, global_step)
-                if step % FLAGS.log_every == 0:
-                    print('step: {}/{}... '.format(step, FLAGS.max_steps),
-                          'loss: {:.4f}... '.format(loss),
-                          '{:.4f} sec/batch'.format((end - start)))
-                if current_step % FLAGS.save_model_every == 0:
-                    saver.save(
-                        sess,
-                        os.path.join(model_path, 'model.ckpt'),
-                        global_step=current_step)
-                if current_step >= FLAGS.max_steps:
-                    break
+                print("{}/{} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
+                      .format(e * data_loader.num_batches + b,
+                              args.num_epochs * data_loader.num_batches,
+                              e, train_loss, end - start))
+                if (e * data_loader.num_batches + b) % args.save_every == 0\
+                        or (e == args.num_epochs-1 and
+                            b == data_loader.num_batches-1):
+                    # save for the last result
+                    checkpoint_path = os.path.join(args.save_dir, 'model.ckpt')
+                    saver.save(sess, checkpoint_path,
+                               global_step=e * data_loader.num_batches + b)
+                    print("model saved to {}".format(checkpoint_path))
+
 
 if __name__ == '__main__':
-    tf.app.run()
-    print('train done.')
+    train(args)

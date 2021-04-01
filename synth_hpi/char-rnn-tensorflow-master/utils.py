@@ -1,88 +1,81 @@
-import copy
-import pickle
+import codecs
+import os
+import collections
+from six.moves import cPickle
 import numpy as np
 
 
-def batch_generator(arr, n_seqs, n_steps):
-    arr = copy.copy(arr)
-    batch_size = n_seqs * n_steps
-    num_batches = len(arr) // batch_size
-    arr = arr[:batch_size * num_batches]
-    arr = arr.reshape((n_seqs, -1))
+class TextLoader():
+    def __init__(self, data_dir, batch_size, seq_length, encoding='utf-8'):
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.seq_length = seq_length
+        self.encoding = encoding
 
-    while True:
-        np.random.shuffle(arr)
-        for n in range(0, arr.shape[1],n_steps):
-            x = arr[:, n:n + n_steps]
-            y = np.zeros_like(x)
-            y[:, :-1], y[:, -1] = x[:, 1:], x[:, 0]
-            yield x, y
+        input_file = os.path.join(data_dir, "input.txt")
+        vocab_file = os.path.join(data_dir, "vocab.pkl")
+        tensor_file = os.path.join(data_dir, "data.npy")
 
-
-class TextReader(object):
-    def __init__(self, text=None, max_vocab=5000, filename=None):
-        if filename is not None:
-            with open(filename, 'rb') as f:
-                self.vocab = pickle.load(f)
-
+        if not (os.path.exists(vocab_file) and os.path.exists(tensor_file)):
+            print("reading text file")
+            self.preprocess(input_file, vocab_file, tensor_file)
         else:
-            vocab = set(text)
+            print("loading preprocessed files")
+            self.load_preprocessed(vocab_file, tensor_file)
+        self.create_batches()
+        self.reset_batch_pointer()
 
-            vocab_count = {}
-            for word in vocab:
-                vocab_count[word] = 0
-            for word in text:
-                vocab_count[word] += 1
-            vocab_count_list = []
-            for word in vocab_count:
-                vocab_count_list.append((word, vocab_count[word]))
-            vocab_count_list.sort(key=lambda x: x[1], reverse=True)
-            if len(vocab_count_list) > max_vocab:
-                vocab_count_list = vocab_count_list[:max_vocab]
-            self.vocab = [x[0] for x in vocab_count_list]
-
-        self.word_to_int_table = {c: i for i, c in enumerate(self.vocab)}
-        self.int_to_word_table = dict(enumerate(self.vocab))
-
-    @property
-    def vocab_size(self):
-        return len(self.vocab) + 1
-
-    def word_to_int(self, word):
-        if word in self.word_to_int_table:
-            return self.word_to_int_table[word]
-        else:
-            return len(self.vocab)
-
-    def int_to_word(self, index):
-        if index == len(self.vocab):
-            return '<unk>'
-        elif index < len(self.vocab):
-            return self.int_to_word_table[index]
-        else:
-            raise Exception('Unknown index!')
-
-    def text_to_arr(self, text):
-        arr = []
-        for word in text:
-            arr.append(self.word_to_int(word))
-        return np.array(arr)
-
-    def arr_to_text(self, arr):
-        words = []
-        for index in arr:
-            words.append(self.int_to_word(index))
-        return ''.join(words)
-
-    def save_to_file(self, filename):
-        with open(filename, 'wb') as f:
-            pickle.dump(self.vocab, f)
+    # preprocess data for the first time.
+    def preprocess(self, input_file, vocab_file, tensor_file):
+        with codecs.open(input_file, "r", encoding=self.encoding) as f:
+            data = f.read()
+        counter = collections.Counter(data)
+        count_pairs = sorted(counter.items(), key=lambda x: -x[1])
+        self.chars, _ = zip(*count_pairs)
+        self.vocab_size = len(self.chars)
+        self.vocab = dict(zip(self.chars, range(len(self.chars))))
+        with open(vocab_file, 'wb') as f:
+            cPickle.dump(self.chars, f)
+        self.tensor = np.array(list(map(self.vocab.get, data)))
+        np.save(tensor_file, self.tensor)
 
 
-def pick_top_n(preds, vocab_size, top_n=5):
-    p = np.squeeze(preds)
-    p[np.argsort(p)[:-top_n]] = 0
-    # 归一化概率
-    p = p / sum(p)
-    c = np.random.choice(vocab_size, 1, p=p)[0]
-    return c
+    # load the preprocessed the data if the data has been processed before.
+    def load_preprocessed(self, vocab_file, tensor_file):
+        with open(vocab_file, 'rb') as f:
+            self.chars = cPickle.load(f)
+        self.vocab_size = len(self.chars)
+        self.vocab = dict(zip(self.chars, range(len(self.chars))))
+        self.tensor = np.load(tensor_file)
+        self.num_batches = int(self.tensor.size / (self.batch_size *
+                                                   self.seq_length))
+    # seperate the whole data into different batches.
+    def create_batches(self):
+        self.num_batches = int(self.tensor.size / (self.batch_size *
+                                                   self.seq_length))
+
+        # When the data (tensor) is too small,
+        # let's give them a better error message
+        if self.num_batches == 0:
+            assert False, "Not enough data. Make seq_length and batch_size small."
+
+        # reshape the original data into the length self.num_batches * self.batch_size * self.seq_length for convenience.
+        self.tensor = self.tensor[:self.num_batches * self.batch_size * self.seq_length]
+        xdata = self.tensor
+        ydata = np.copy(self.tensor)
+
+        #ydata is the xdata with one position shift.
+        ydata[:-1] = xdata[1:]
+        ydata[-1] = xdata[0]
+        self.x_batches = np.split(xdata.reshape(self.batch_size, -1),
+                                  self.num_batches, 1)
+        self.y_batches = np.split(ydata.reshape(self.batch_size, -1),
+                                  self.num_batches, 1)
+
+    def next_batch(self):
+        x, y = self.x_batches[self.pointer], self.y_batches[self.pointer]
+        self.pointer += 1
+        return x, y
+
+    def reset_batch_pointer(self):
+        self.pointer = 0
