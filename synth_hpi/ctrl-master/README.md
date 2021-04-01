@@ -1,4 +1,4 @@
-This code was mostly copied from https://github.com/minimaxir/gpt-2-simple.
+This code was mostly copied from https://github.com/salesforce/ctrl.
 
 Changes includes: creat train_utils/run_gen_ctrl.sh and run_gen_ctrl.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data; minor modifications to generate.py. 
 
