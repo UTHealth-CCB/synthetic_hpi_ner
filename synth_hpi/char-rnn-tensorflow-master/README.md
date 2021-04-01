@@ -1,113 +1,62 @@
 This code was mostly copied from https://github.com/sherjilozair/char-rnn-tensorflow.
 
-Changes includes: create run_gen_charrnn.sh and run_gen_charrnn.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data.
+Changes includes: create run_gen_charrnn.sh and run_gen_charrnn.sh to train and generate synthetic texts based on I2B2 2010 and N2C2 2018 History of Present Illness (HPI) section data; minor modifications to main.py, model.py, and utils.py.
 
 Following is the original README of this package.
 
-# char-rnn-tensorflow
-Multi-layer Recurrent Neural Networks (LSTM,RNN) for character-level language models in Python using Tensorflow.
+char-rnn-tensorflow
+Join the chat at https://gitter.im/char-rnn-tensorflow/Lobby Coverage Status Build Status
 
-## Requirments
-- Python 3.6.1
-- TensorFlow 1.3.0
+Multi-layer Recurrent Neural Networks (LSTM, RNN) for character-level language models in Python using Tensorflow.
 
+Inspired from Andrej Karpathy's char-rnn.
 
-## Generate English text
-To train:
-```
-python train.py --input_file data/shakespeare.txt --name shakespeare --num_steps 50 --num_seqs 32 --learning_rate 0.01 --max_steps 20000
-```
+Requirements
+Tensorflow 1.0
+Basic Usage
+To train with default parameters on the tinyshakespeare corpus, run python train.py. To access all the parameters use python train.py --help.
 
-To sample
-```
-python sample.py --converter_path shakespeare/converter.pkl --checkpoint_path shakespeare/model/ --max_length 1000
-```
+To sample from a checkpointed model, python sample.py. Sampling while the learning is still in progress (to check last checkpoint) works only in CPU or using another GPU. To force CPU mode, use export CUDA_VISIBLE_DEVICES="" and unset CUDA_VISIBLE_DEVICES afterward (resp. set CUDA_VISIBLE_DEVICES="" and set CUDA_VISIBLE_DEVICES= on Windows).
 
+To continue training after interruption or to run on more epochs, python train.py --init_from=save
 
-## Generate Chinese Poetries
+Datasets
+You can use any plain text file as input. For example you could download The complete Sherlock Holmes as such:
 
-To train
-```
-python train.py --use_embedding --input_file data/poetry.txt --name poetry --learning_rate 0.005 --num_steps 26 --num_seqs 32 --max_steps 10000
-```
+cd data
+mkdir sherlock
+cd sherlock
+wget https://sherlock-holm.es/stories/plain-text/cnus.txt
+mv cnus.txt input.txt
+Then start train from the top level directory using python train.py --data_dir=./data/sherlock/
 
-To sample
+A quick tip to concatenate many small disparate .txt files into one large training file: ls *.txt | xargs -L 1 cat >> input.txt.
 
-```
-python sample.py --use_embedding --converter_path poetry/converter.pkl --checkpoint_path poetry/model/ --max_length 300
-```
+Tuning
+Tuning your models is kind of a "dark art" at this point. In general:
 
+Start with as much clean input.txt as possible e.g. 50MiB
+Start by establishing a baseline using the default settings.
+Use tensorboard to compare all of your runs visually to aid in experimenting.
+Tweak --rnn_size up somewhat from 128 if you have a lot of input data.
+Tweak --num_layers from 2 to 3 but no higher unless you have experience.
+Tweak --seq_length up from 50 based on the length of a valid input string (e.g. names are <= 12 characters, sentences may be up to 64 characters, etc). An lstm cell will "remember" for durations longer than this sequence, but the effect falls off for longer character distances.
+Finally once you've done all that, only then would I suggest adding some dropout. Start with --output_keep_prob 0.8 and maybe end up with both --input_keep_prob 0.8 --output_keep_prob 0.5 only after exhausting all the above values.
+Tensorboard
+To visualize training progress, model graphs, and internal state histograms: fire up Tensorboard and point it at your log_dir. E.g.:
 
-## Generate Chinese Novels
+$ tensorboard --logdir=./logs/
+Then open a browser to http://localhost:6006 or the correct IP/Port specified.
 
-To train
+Roadmap
+ Add explanatory comments
+ Expose more command-line arguments
+ Compare accuracy and performance with char-rnn
+ More Tensorboard instrumentation
+Contributing
+Please feel free to:
 
-```
-python train.py --use_embedding True --input_file data/novel.txt --num_steps 80 --name novel --learning_rate 0.005 --num_seqs 32 --num_layers 3 --embedding_size 256 --lstm_size 256 --max_steps 1000000
-```
-
-To sample
-
-```
-python sample.py --converter_path novel/converter.pkl --checkpoint_path  novel/model/ --use_embedding --max_length 2000 --num_layers 3 --lstm_size 256 --embedding_size 256
-```
-
-
-## Generate Chinese Lyrics
-
-
-To train
-
-```
-python train.py --input_file data/jay.txt --num_steps 20 --batch_size 32 --name jay --max_steps 5000 --learning_rate 0.01 --num_layers 3 --use_embedding
-```
-
-To sample
-
-```
-python sample.py --converter_path jay/converter.pkl --checkpoint_path  jay/model/ --max_length 500 --use_embedding --num_layers 3 --start_string 我知道
-```
-
-
-## Generate Linux Code
-
-To train
-
-```
-python train.py --input_file data/linux.txt --num_steps 100 --name linux --learning_rate 0.01 --num_seqs 32 --max_steps 20000
-```
-
-
-To sample
-
-```
-python sample.py --converter_path linux/converter.pkl --checkpoint_path  linux/model/ --max_length 1000
-```
-
-## Generate Japanese Text
-
-To train
-
-```
-python train.py --input_file data/jpn.txt --num_steps 20 --batch_size 32 --name jpn --max_steps 10000 --learning_rate 0.01 --use_embedding
-```
-
-To sample
-
-```
-python sample.py --converter_path jpn/converter.pkl --checkpoint_path jpn/model/--max_length 1000 --use_embedding
-```
-
-
-## Learn RNNs
-
- - [CS224n: Natural Language Processing with Deep Learning](http://web.stanford.edu/class/cs224n/syllabus.html)
- - [Andrej Karpathy, The Unreasonable Effectiveness of Recurrent Neural Networks, 2015](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
- - [CS231n: Convolutional Neural Networks for Visual Recognition](http://cs231n.stanford.edu/slides/2017/cs231n_2017_lecture10.pdf)
-
-
-## Acknowledgement
-
- - [TensorFlow 中 RNN 实现的正确打开方式](https://zhuanlan.zhihu.com/p/28196873)
- - [完全图解 RNN、RNN 变体、Seq2Seq、Attention 机制](https://zhuanlan.zhihu.com/p/28054589)
- - [hzy46/Char-RNN-TensorFlow](https://github.com/hzy46/Char-RNN-TensorFlow)(The codes are all almost from this.I learn a lot from it and implement char-rnn with some changes)
+Leave feedback in the issues
+Open a Pull Request
+Join the gittr chat
+Share your success stories and data sets!
